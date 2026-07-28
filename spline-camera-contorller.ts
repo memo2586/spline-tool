@@ -69,7 +69,7 @@ export class SplineCameraController extends Component {
     set reverse(value) {
         this._reverse = value;
 
-        if (this._EDITOR()) {
+        if (this.isEditorPreviewEnabled()) {
             this.updatePreview();
         }
     }
@@ -141,7 +141,7 @@ export class SplineCameraController extends Component {
     set playInEditor(value: boolean) {
         this._playInEditor = value;
 
-        if (!this._EDITOR()) {
+        if (!this.isEditorPreviewEnabled()) {
             return;
         }
 
@@ -171,7 +171,7 @@ export class SplineCameraController extends Component {
     set previewProgress(v: number) {
         this._previewProgress = v;
 
-        if (!this._EDITOR()) {
+        if (!this.isEditorPreviewEnabled()) {
             return;
         }
 
@@ -245,7 +245,8 @@ export class SplineCameraController extends Component {
 
     private readonly _splineRotation = new Quat();
 
-    private _EDITOR() {
+    /** 当前是否处于启用中的编辑器预览状态。 */
+    private isEditorPreviewEnabled(): boolean {
         return EDITOR && this._previewInEditor;
     }
 
@@ -254,14 +255,14 @@ export class SplineCameraController extends Component {
     //==================================================
 
     start(): void {
-        if (!this._EDITOR() && this.playOnStart) {
+        if (!this.isEditorPreviewEnabled() && this.playOnStart) {
             this.play();
         }
     }
 
     protected update(dt: number) {
 
-        if (this._EDITOR() && !this.playInEditor) {
+        if (this.isEditorPreviewEnabled() && !this.playInEditor) {
             return;
         }
 
@@ -303,7 +304,7 @@ export class SplineCameraController extends Component {
     // Public API
     //==================================================
 
-    public play() {
+    public play(): void {
 
         if (!this.isReady()) {
             return;
@@ -312,21 +313,21 @@ export class SplineCameraController extends Component {
         this._state = CameraPlayState.Playing;
     }
 
-    public pause() {
+    public pause(): void {
 
         if (this._state === CameraPlayState.Playing) {
             this._state = CameraPlayState.Paused;
         }
     }
 
-    public resume() {
+    public resume(): void {
 
         if (this._state === CameraPlayState.Paused) {
             this._state = CameraPlayState.Playing;
         }
     }
 
-    public stop(resetProgress = true) {
+    public stop(resetProgress = true): void {
 
         this._state = CameraPlayState.Stopped;
 
@@ -336,21 +337,21 @@ export class SplineCameraController extends Component {
         }
     }
 
-    public jumpToStart() {
+    public jumpToStart(): void {
 
         this._distance = 0;
 
         this.applyCamera(this._distance);
     }
 
-    public jumpToEnd() {
+    public jumpToEnd(): void {
 
         this._distance = this.spline.length;
 
         this.applyCamera(this._distance);
     }
 
-    public setProgress(progress: number) {
+    public setProgress(progress: number): void {
 
         if (!this.isReady()) {
             return;
@@ -372,17 +373,17 @@ export class SplineCameraController extends Component {
         return this._distance / this.spline.length;
     }
 
-    public isPlaying() {
+    public isPlaying(): boolean {
 
         return this._state === CameraPlayState.Playing;
     }
 
-    public isPaused() {
+    public isPaused(): boolean {
 
         return this._state === CameraPlayState.Paused;
     }
 
-    public isStopped() {
+    public isStopped(): boolean {
 
         return this._state === CameraPlayState.Stopped;
     }
@@ -506,15 +507,13 @@ export class SplineCameraController extends Component {
     // Utility
     //==================================================
 
-    private getPlaybackDistance(distance: number) {
+    private getPlaybackDistance(distance: number): number {
         return this._reverse
             ? this.spline.length - distance
             : distance;
     }
 
-    private normalizeDistance(
-        distance: number
-    ) {
+    private normalizeDistance(distance: number): number {
 
         if (this.loop) {
 
@@ -542,7 +541,7 @@ export class SplineCameraController extends Component {
         );
     }
 
-    private isReady() {
+    private isReady(): boolean {
 
         return !!(
             this.spline &&
