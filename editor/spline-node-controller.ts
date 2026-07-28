@@ -16,16 +16,16 @@ export default class SplineNodeController extends Controller {
     directionNode: Node = null;
     invDirectionNode: Node = null;
 
-    constructor (rootNode) {
+    constructor(rootNode) {
         super(rootNode);
 
         this.initShape();
     }
 
-    initShape () {
+    initShape() {
         this.createShapeNode('BoxController');
 
-        let cube = cce.gizmos.ControllerUtils.cube(SPLINE_NODE_SIZE, SPLINE_NODE_SIZE, SPLINE_NODE_SIZE, Color.YELLOW);
+        let cube = cce.gizmos.ControllerUtils.cube(SPLINE_NODE_SIZE, SPLINE_NODE_SIZE, SPLINE_NODE_SIZE, Color.GREEN);
         cube.parent = this.shape;
         this.positionNode = cube;
         this.initHandle(cube, SplineMoveType.Position);
@@ -46,16 +46,16 @@ export default class SplineNodeController extends Controller {
         this.hide();
     }
 
-    onShow () {
+    onShow() {
         this.registerCameraMovedEvent();
         this.hideDirection();
     }
 
-    onHide () {
+    onHide() {
         this.unregisterCameraMoveEvent();
     }
 
-    showDirection () {
+    showDirection() {
         this.directionNode.active = true;
         this.invDirectionNode.active = true;
         this._directionLineShape.active = true;
@@ -63,13 +63,13 @@ export default class SplineNodeController extends Controller {
         this.updateLineMesh();
     }
 
-    hideDirection () {
+    hideDirection() {
         this.directionNode.active = false;
         this.invDirectionNode.active = false;
         this._directionLineShape.active = false;
     }
 
-    setSplineNode (node: Node, splineNode) {
+    setSplineNode(node: Node, splineNode) {
         this._splineNode = splineNode;
         this._node = node;
 
@@ -83,17 +83,17 @@ export default class SplineNodeController extends Controller {
         this.updateController();
     }
 
-    updateLineMesh () {
+    updateLineMesh() {
         this._directionLineShape.updatePoints([this.directionNode.position, this.invDirectionNode.position]);
     }
 
-    getSplineNodeWorldPosition () {
+    getSplineNodeWorldPosition() {
         return this.positionNode.getWorldPosition(new Vec3);
     }
-    getSplineNodeWorldDirection () {
+    getSplineNodeWorldDirection() {
         return this.directionNode.getWorldPosition(new Vec3);
     }
-    getSplineNodeWorldInvDirection () {
+    getSplineNodeWorldInvDirection() {
         return this.invDirectionNode.getWorldPosition(new Vec3);
     }
 };
