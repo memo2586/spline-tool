@@ -7,8 +7,9 @@ import {
     Quat,
     EventHandler,
     CCFloat,
-    EDITOR,
 } from 'cc';
+
+import { EDITOR } from 'cc/env';
 
 import Spline from './spline';
 import CurveSample from './curve-sample';
@@ -42,6 +43,38 @@ export class SplineCameraController extends Component {
     camera: Camera = null!;
 
     //==================================================
+    // Spline
+    //==================================================
+
+    @property({
+        group: {
+            id: 'spline',
+            name: 'Spline',
+        }
+    })
+    loop = false;
+
+    private _reverse = false;
+    @property({
+        tooltip: '反向播放Spline',
+        group: {
+            id: 'spline',
+            name: 'Spline',
+        }
+    })
+    get reverse() {
+        return this._reverse;
+    }
+
+    set reverse(value) {
+        this._reverse = value;
+
+        if (this._EDITOR()) {
+            this.updatePreview();
+        }
+    }
+
+    //==================================================
     // Runtime
     //==================================================
 
@@ -53,9 +86,6 @@ export class SplineCameraController extends Component {
         }
     })
     speed = 5;
-
-    @property
-    loop = false;
 
     @property({
         tooltip: '运行时启动自动播放',
@@ -70,6 +100,7 @@ export class SplineCameraController extends Component {
     // Preview
     //==================================================
 
+    private _previewInEditor = true;
     @property({
         tooltip: '编辑器中允许预览',
         group: {
@@ -77,7 +108,23 @@ export class SplineCameraController extends Component {
             name: 'Preview',
         }
     })
-    previewInEditor = true;
+    get previewInEditor() {
+        return this._previewInEditor;
+    }
+
+    set previewInEditor(value) {
+        this._previewInEditor = value;
+
+        if (EDITOR) {
+            if (this._previewInEditor && this.playInEditor) {
+                this.play();
+            }
+            else {
+                this.playInEditor = false;
+                this.stop();
+            }
+        }
+    }
 
     private _playInEditor = false;
     @property({
@@ -93,6 +140,11 @@ export class SplineCameraController extends Component {
 
     set playInEditor(value: boolean) {
         this._playInEditor = value;
+
+        if (!this._EDITOR()) {
+            return;
+        }
+
         if (this._playInEditor) {
             this.play();
         }
@@ -119,7 +171,7 @@ export class SplineCameraController extends Component {
     set previewProgress(v: number) {
         this._previewProgress = v;
 
-        if (EDITOR && !cc.GAME_VIEW || !this.previewInEditor) {
+        if (!this._EDITOR()) {
             return;
         }
 
@@ -193,22 +245,23 @@ export class SplineCameraController extends Component {
 
     private readonly _splineRotation = new Quat();
 
+    private _EDITOR() {
+        return EDITOR && this._previewInEditor;
+    }
+
     //==================================================
     // Life Cycle
     //==================================================
 
-    protected onEnable() {
-
-        // if (!EDITOR && !cc.GAME_VIEW && this.playOnStart) {
-
-        //     this.play();
-
-        // }
+    start(): void {
+        if (!this._EDITOR() && this.playOnStart) {
+            this.play();
+        }
     }
 
     protected update(dt: number) {
 
-        if (EDITOR && !cc.GAME_VIEW) {
+        if (this._EDITOR() && !this.playInEditor) {
             return;
         }
 
@@ -355,11 +408,14 @@ export class SplineCameraController extends Component {
 
     private applyCamera(distance: number) {
 
-        const d = this.normalizeDistance(distance);
+        let d = this.normalizeDistance(distance);
+
+        // 反向播放只在相机组件内部进行，不修改 Spline 的反转状态。
+        const sampleDistance = this.getPlaybackDistance(d);
 
         const sample =
             this.spline.getSampleAtDistance(
-                d,
+                sampleDistance,
                 this._sample
             );
 
@@ -431,7 +487,7 @@ export class SplineCameraController extends Component {
 
             const sample =
                 this.spline.getSampleAtDistance(
-                    lookDistance
+                    this.getPlaybackDistance(lookDistance)
                 );
 
             Vec3.transformMat4(
@@ -449,6 +505,12 @@ export class SplineCameraController extends Component {
     //==================================================
     // Utility
     //==================================================
+
+    private getPlaybackDistance(distance: number) {
+        return this._reverse
+            ? this.spline.length - distance
+            : distance;
+    }
 
     private normalizeDistance(
         distance: number
