@@ -119,6 +119,20 @@ export default class Spline extends Component {
         this.updateLoopBinding();
     }
 
+    /**
+     * 是否反向读取样条。
+     * 勾选后，getSampleAtDistance(0) 对应原样条的终点，
+     * getSampleAtDistance(length) 对应原样条的起点。
+     */
+    private _reversePoints = false;
+    @boolean
+    public get reversePoints () {
+        return this._reversePoints;
+    }
+    public set reversePoints (value) {
+        this._reversePoints = value;
+    }
+
 
     private _gizmoEditing = false;
     get gizmoEditing () {
@@ -310,6 +324,13 @@ export default class Spline extends Component {
     public getSampleAtDistance (d: number, out?: CurveSample): CurveSample {
         if (d < 0 || d > this.length)
             throw new Error(`Distance must be between 0 and spline length (${this.length}). Given distance was ${d}.`);
+
+        // 反转距离映射：反向样条的起点对应正向样条的终点。
+        const requestedDistance = d;
+        if (this._reversePoints) {
+            d = this.length - d;
+        }
+
         for (let i = 0; i < this.curves.length; i++) {
             let curve = this.curves[i];
             // test if distance is approximatly equals to curve length, because spline
@@ -320,7 +341,22 @@ export default class Spline extends Component {
             if (d > curve.length) {
                 d -= curve.length;
             } else {
-                return curve.getSampleAtDistance(d, out);
+                const sample = curve.getSampleAtDistance(d, out);
+
+                if (this._reversePoints) {
+                    // 位置按反向距离采样后，切线方向也必须反向。
+                    sample.set(
+                        sample.location,
+                        sample.tangent.clone().multiplyScalar(-1),
+                        sample.up,
+                        sample.scale,
+                        sample.roll,
+                        requestedDistance,
+                        sample.timeInCurve
+                    );
+                }
+
+                return sample;
             }
         }
         throw new Error("Something went wrong with GetSampleAtDistance.");
