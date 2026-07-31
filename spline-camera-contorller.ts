@@ -78,23 +78,36 @@ export class SplineCameraController extends Component {
     // Runtime
     //==================================================
 
-    @property({
-        tooltip: '播放速度（单位：Spline距离/秒）',
-        group: {
-            id: 'runtime',
-            name: 'Runtime',
-        }
-    })
-    speed = 5;
+
+    private _previewProgress = 0;
 
     @property({
-        tooltip: '运行时启动自动播放',
+        type: CCFloat,
+        range: [0, 0.9999, 0.0001],
+        slide: true,
         group: {
             id: 'runtime',
             name: 'Runtime',
         }
     })
-    playOnStart = true;
+    get previewProgress() {
+        return this._previewProgress;
+    }
+
+    set previewProgress(v: number) {
+        this._previewProgress = v;
+
+        this.updatePreview();
+    }
+
+    // @property({
+    //     tooltip: '运行时启动自动播放',
+    //     group: {
+    //         id: 'runtime',
+    //         name: 'Runtime',
+    //     }
+    // })
+    // playOnStart = true;
 
     //==================================================
     // Preview
@@ -126,6 +139,15 @@ export class SplineCameraController extends Component {
         }
     }
 
+    @property({
+        tooltip: '播放速度（单位：Spline距离/秒）',
+        group: {
+            id: 'preview',
+            name: 'Preview',
+        }
+    })
+    previewSpeed = 5;
+
     private _playInEditor = false;
     @property({
         tooltip: '编辑器中自动播放',
@@ -151,31 +173,6 @@ export class SplineCameraController extends Component {
         else {
             this.stop();
         }
-    }
-
-    private _previewProgress = 0;
-
-    @property({
-        type: CCFloat,
-        range: [0, 0.9999, 0.0001],
-        slide: true,
-        group: {
-            id: 'preview',
-            name: 'Preview',
-        }
-    })
-    get previewProgress() {
-        return this._previewProgress;
-    }
-
-    set previewProgress(v: number) {
-        this._previewProgress = v;
-
-        if (!this.isEditorPreviewEnabled()) {
-            return;
-        }
-
-        this.updatePreview();
     }
 
     //==================================================
@@ -255,12 +252,14 @@ export class SplineCameraController extends Component {
     //==================================================
 
     start(): void {
-        if (!this.isEditorPreviewEnabled() && this.playOnStart) {
+        if (!this.isEditorPreviewEnabled()) {
             this.play();
         }
     }
 
     protected update(dt: number) {
+
+        if (!this.isEditorPreviewEnabled()) return;
 
         if (this.isEditorPreviewEnabled() && !this.playInEditor) {
             return;
@@ -274,7 +273,7 @@ export class SplineCameraController extends Component {
             return;
         }
 
-        this._distance += this.speed * dt;
+        this._distance += this.previewSpeed * dt;
 
         if (this.loop) {
 
@@ -300,6 +299,7 @@ export class SplineCameraController extends Component {
 
         this.applyCamera(this._distance);
     }
+
     //==================================================
     // Public API
     //==================================================
