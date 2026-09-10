@@ -6,6 +6,7 @@ import ContinuousLineController from './continuous-line-controller';
 import pool from '../utils/pool';
 import SplineNode from '../spline-node';
 import Spline from '../spline';
+import { SplineCameraController } from '../spline-camera-contorller';
 import { Node, Vec3, warn } from 'cc';
 import { SplineMoveType } from './types';
 import { cce } from './define';
@@ -86,7 +87,13 @@ if (EDITOR) {
         }
 
         get spline (): Spline {
-            return this.target instanceof SplineNode ? findComponentInParent(this.target.node, Spline) : this.target;
+            if (this.target instanceof SplineNode) {
+                return findComponentInParent(this.target.node, Spline);
+            }
+            if (this.target instanceof SplineCameraController) {
+                return this.target.spline;
+            }
+            return this.target;
         }
         get splineNodes () {
             return this.spline.nodes;
@@ -120,7 +127,15 @@ if (EDITOR) {
                 return;
             }
 
-            let node = this.spline.node;
+            const spline = this.spline;
+            if (!spline) {
+                this.moveController?.hide();
+                this.splineLineController?.hide();
+                this.showTransformGizmo(true);
+                return;
+            }
+
+            let node = spline.node;
             let splineNodes = this.splineNodes;
             let splineNodeControllers = this.splineNodeControllers;
             for (let i = 0; i < splineNodeControllers.length; i++) {
@@ -138,8 +153,8 @@ if (EDITOR) {
             this.moveController!.hide();
             this.updateControllerTransform();
 
-            this.spline.nodeListChanged.addListener(this.onSplineNodesUpdate);
-            this.spline.curveChanged.addListener(this.onSplineCurvesUpdate);
+            spline.nodeListChanged.addListener(this.onSplineNodesUpdate);
+            spline.curveChanged.addListener(this.onSplineCurvesUpdate);
 
             this.onSplineNodesUpdate();
             this.onSplineCurvesUpdate();
@@ -149,8 +164,21 @@ if (EDITOR) {
             if (this.target instanceof SplineNode) {
                 this.selectIndex(this.splineNodes.indexOf(this.target), SplineMoveType.Position);
             }
-            else {
+            else if (this.target instanceof Spline) {
                 this.selectIndex(-1, SplineMoveType.Node);
+            }
+            else {
+                // 从 Camera Controller 进入时保持相机节点的 Transform Gizmo，
+                // 仅显示曲线及控制点。点击控制点后再切换到 Spline 移动轴。
+                if (this.currentSplineNodeController) {
+                    this.currentSplineNodeController.hideDirection();
+                    this.currentSplineNodeController = null;
+                }
+                spline.currentSelection = null;
+                this.moveTarget = null;
+                this.moveType = SplineMoveType.None;
+                this.moveController.hide();
+                this.showTransformGizmo(true);
             }
         }
 
@@ -176,10 +204,12 @@ if (EDITOR) {
                 this.showTransformGizmo(true);
             }
 
-            this.spline.nodeListChanged.removeListener(this.onSplineNodesUpdate);
-            this.spline.curveChanged.removeListener(this.onSplineCurvesUpdate);
-
-            this.spline.currentSelection = null;
+            const spline = this.spline;
+            if (spline) {
+                spline.nodeListChanged.removeListener(this.onSplineNodesUpdate);
+                spline.curveChanged.removeListener(this.onSplineCurvesUpdate);
+                spline.currentSelection = null;
+            }
 
             this.unregisterCameraMoveEvent();
         }
@@ -326,5 +356,6 @@ if (EDITOR) {
 
     Gizmo.register('spline', SplineGizmo);
     Gizmo.register('SplineNode', SplineGizmo);
+    Gizmo.register('SplineCameraController', SplineGizmo);
 
 }
