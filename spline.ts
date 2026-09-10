@@ -117,6 +117,7 @@ export default class Spline extends Component {
     public set isLoop (v) {
         this._isLoop = v;
         this.updateLoopBinding();
+        this.previewChanged.invoke();
     }
 
     /**
@@ -131,6 +132,7 @@ export default class Spline extends Component {
     }
     public set reversePoints (value) {
         this._reversePoints = value;
+        this.previewChanged.invoke();
     }
 
 
@@ -156,6 +158,12 @@ export default class Spline extends Component {
 
     public nodeListChanged: Event = new Event;
     public curveChanged: Event = new Event;
+
+    /**
+     * 轻量的实时预览变化事件。
+     * Gizmo 拖拽期间 curveChanged 会被抑制，但相机等预览对象仍可监听此事件即时刷新。
+     */
+    public previewChanged: Event = new Event;
 
     onLoad () {
         this._updateNodes();
@@ -280,6 +288,7 @@ export default class Spline extends Component {
             let curve = this.curves[i];
             this.length += curve.length;
         }
+        this.previewChanged.invoke();
         this.invokeCurveChanged();
 
         this._points.length = 0;

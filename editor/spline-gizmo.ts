@@ -329,6 +329,9 @@ if (EDITOR) {
                         this.commitNodeChanged(splineNode.node);
                     }
 
+                    // Gizmo 编辑期间常规 curveChanged 会被抑制；这里仍刷新总长度并
+                    // 触发轻量预览事件，让相机预览能够实时跟随控制点变化。
+                    this.spline.updateAfterCurveChanged();
 
                     this.updateControllerTransform();
 

@@ -36,8 +36,26 @@ export class SplineCameraController extends Component {
     // References
     //==================================================
 
-    @property(Spline)
-    spline: Spline = null!;
+    private _spline: Spline = null!;
+
+    @property({ type: Spline })
+    get spline(): Spline {
+        return this._spline;
+    }
+
+    set spline(value: Spline) {
+        if (this._spline === value) {
+            return;
+        }
+
+        this.unbindSplineChanges();
+        this._spline = value;
+
+        if (this.enabledInHierarchy) {
+            this.bindSplineChanges();
+            this.updateCameraFromSplineChange();
+        }
+    }
 
     @property(Camera)
     camera: Camera = null!;
@@ -53,6 +71,34 @@ export class SplineCameraController extends Component {
         }
     })
     loop = false;
+
+    private _updateCameraOnSplineChanged = true;
+    @property({
+        tooltip: 'Spline 形状或变换发生变化时，立即按当前进度更新相机位置',
+        group: {
+            id: 'spline',
+            name: 'Spline',
+        }
+    })
+    get updateCameraOnSplineChanged() {
+        return this._updateCameraOnSplineChanged;
+    }
+
+    set updateCameraOnSplineChanged(value: boolean) {
+        if (this._updateCameraOnSplineChanged === value) {
+            return;
+        }
+
+        this._updateCameraOnSplineChanged = value;
+
+        if (value) {
+            this.bindSplineChanges();
+            this.updateCameraFromSplineChange();
+        }
+        else {
+            this.unbindSplineChanges();
+        }
+    }
 
     private _reverse = false;
     @property({
@@ -242,6 +288,10 @@ export class SplineCameraController extends Component {
 
     private readonly _splineRotation = new Quat();
 
+    private _observedSpline: Spline | null = null;
+
+    private _updatingFromSplineChange = false;
+
     /** 当前是否处于启用中的编辑器预览状态。 */
     private isEditorPreviewEnabled(): boolean {
         return EDITOR && this._previewInEditor;
@@ -250,6 +300,15 @@ export class SplineCameraController extends Component {
     //==================================================
     // Life Cycle
     //==================================================
+
+    protected onEnable(): void {
+        this.bindSplineChanges();
+        this.updateCameraFromSplineChange();
+    }
+
+    protected onDisable(): void {
+        this.unbindSplineChanges();
+    }
 
     start(): void {
         if (!this.isEditorPreviewEnabled()) {
@@ -391,6 +450,73 @@ export class SplineCameraController extends Component {
     //==================================================
     // Preview
     //==================================================
+
+    private bindSplineChanges(): void {
+        if (
+            !this._updateCameraOnSplineChanged ||
+            !this.enabledInHierarchy ||
+            !this._spline ||
+            this._observedSpline === this._spline
+        ) {
+            return;
+        }
+
+        this.unbindSplineChanges();
+
+        this._observedSpline = this._spline;
+        this._observedSpline.previewChanged.addListener(
+            this.updateCameraFromSplineChange,
+            this
+        );
+        this._observedSpline.node.on(
+            Node.EventType.TRANSFORM_CHANGED,
+            this.updateCameraFromSplineChange,
+            this
+        );
+    }
+
+    private unbindSplineChanges(): void {
+        if (!this._observedSpline) {
+            return;
+        }
+
+        this._observedSpline.previewChanged.removeListener(
+            this.updateCameraFromSplineChange,
+            this
+        );
+        this._observedSpline.node.off(
+            Node.EventType.TRANSFORM_CHANGED,
+            this.updateCameraFromSplineChange,
+            this
+        );
+        this._observedSpline = null;
+    }
+
+    private updateCameraFromSplineChange(): void {
+        if (
+            !this._updateCameraOnSplineChanged ||
+            this._updatingFromSplineChange ||
+            !this.enabledInHierarchy ||
+            (EDITOR && !this._previewInEditor) ||
+            !this.isReady()
+        ) {
+            return;
+        }
+
+        this._updatingFromSplineChange = true;
+
+        try {
+            if (this.isEditorPreviewEnabled() && this._state === CameraPlayState.Stopped) {
+                this.updatePreview();
+            }
+            else {
+                this.applyCamera(this._distance);
+            }
+        }
+        finally {
+            this._updatingFromSplineChange = false;
+        }
+    }
 
     private updatePreview() {
 
