@@ -36,42 +36,12 @@ export class SplineCameraController extends Component {
     // References
     //==================================================
 
-    private _spline: Spline = null!;
+    // 组件和节点引用使用直接字段，以确保 Cocos Prefab 能稳定序列化引用 UUID。
+    @property(Spline)
+    spline: Spline = null!;
 
-    @property({ type: Spline })
-    get spline(): Spline {
-        return this._spline;
-    }
-
-    set spline(value: Spline) {
-        if (this._spline === value) {
-            return;
-        }
-
-        this.unbindSplineChanges();
-        this._spline = value;
-
-        if (this.enabledInHierarchy) {
-            this.bindSplineChanges();
-            this.refreshCurrentCameraPreview();
-        }
-    }
-
-    private _camera: Camera = null!;
-
-    @property({ type: Camera })
-    get camera(): Camera {
-        return this._camera;
-    }
-
-    set camera(value: Camera) {
-        if (this._camera === value) {
-            return;
-        }
-
-        this._camera = value;
-        this.refreshCurrentCameraPreview();
-    }
+    @property(Camera)
+    camera: Camera = null!;
 
     //==================================================
     // Spline
@@ -297,7 +267,6 @@ export class SplineCameraController extends Component {
         this.refreshCurrentCameraPreview();
     }
 
-    private _lookAtTarget: Node | null = null;
     @property({
         type: Node,
         group: {
@@ -305,20 +274,7 @@ export class SplineCameraController extends Component {
             name: 'LookAt',
         }
     })
-    get lookAtTarget(): Node | null {
-        return this._lookAtTarget;
-    }
-
-    set lookAtTarget(value: Node | null) {
-        if (this._lookAtTarget === value) {
-            return;
-        }
-
-        this.unbindLookAtTargetChanges();
-        this._lookAtTarget = value;
-        this.bindLookAtTargetChanges();
-        this.refreshCurrentCameraPreview();
-    }
+    lookAtTarget: Node | null = null;
 
     private _lookAtOffset = new Vec3();
     @property({
@@ -370,6 +326,12 @@ export class SplineCameraController extends Component {
 
     private _observedLookAtTarget: Node | null = null;
 
+    private _lastSplineReference: Spline | null = null;
+
+    private _lastCameraReference: Camera | null = null;
+
+    private _lastLookAtTargetReference: Node | null = null;
+
     private _updatingCameraPreview = false;
 
     /** 当前是否处于启用中的编辑器预览状态。 */
@@ -382,6 +344,7 @@ export class SplineCameraController extends Component {
     //==================================================
 
     protected onEnable(): void {
+        this.syncReferenceChanges(false);
         this.bindSplineChanges();
         this.bindLookAtTargetChanges();
         this.refreshCurrentCameraPreview();
@@ -399,6 +362,9 @@ export class SplineCameraController extends Component {
     }
 
     protected update(dt: number) {
+
+        // 直接序列化字段没有 setter，通过逐帧比较兼顾 Prefab 引用可靠性与即时预览。
+        this.syncReferenceChanges();
 
         if (!this.isEditorPreviewEnabled()) return;
 
@@ -537,15 +503,15 @@ export class SplineCameraController extends Component {
         if (
             !this._updateCameraOnSplineChanged ||
             !this.enabledInHierarchy ||
-            !this._spline ||
-            this._observedSpline === this._spline
+            !this.spline ||
+            this._observedSpline === this.spline
         ) {
             return;
         }
 
         this.unbindSplineChanges();
 
-        this._observedSpline = this._spline;
+        this._observedSpline = this.spline;
         this._observedSpline.previewChanged.addListener(
             this.updateCameraFromSplineChange,
             this
@@ -582,19 +548,46 @@ export class SplineCameraController extends Component {
         this.refreshCurrentCameraPreview();
     }
 
+    private syncReferenceChanges(refreshPreview = true): void {
+        let changed = false;
+
+        if (this._lastSplineReference !== this.spline) {
+            this.unbindSplineChanges();
+            this._lastSplineReference = this.spline;
+            this.bindSplineChanges();
+            changed = true;
+        }
+
+        if (this._lastCameraReference !== this.camera) {
+            this._lastCameraReference = this.camera;
+            changed = true;
+        }
+
+        if (this._lastLookAtTargetReference !== this.lookAtTarget) {
+            this.unbindLookAtTargetChanges();
+            this._lastLookAtTargetReference = this.lookAtTarget;
+            this.bindLookAtTargetChanges();
+            changed = true;
+        }
+
+        if (changed && refreshPreview) {
+            this.refreshCurrentCameraPreview();
+        }
+    }
+
     private bindLookAtTargetChanges(): void {
         if (
             !this.enabledInHierarchy ||
             !this._lookAtEnabled ||
-            !this._lookAtTarget ||
-            this._observedLookAtTarget === this._lookAtTarget
+            !this.lookAtTarget ||
+            this._observedLookAtTarget === this.lookAtTarget
         ) {
             return;
         }
 
         this.unbindLookAtTargetChanges();
 
-        this._observedLookAtTarget = this._lookAtTarget;
+        this._observedLookAtTarget = this.lookAtTarget;
         this._observedLookAtTarget.on(
             Node.EventType.TRANSFORM_CHANGED,
             this.refreshCurrentCameraPreview,
