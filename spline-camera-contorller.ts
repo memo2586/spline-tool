@@ -53,24 +53,49 @@ export class SplineCameraController extends Component {
 
         if (this.enabledInHierarchy) {
             this.bindSplineChanges();
-            this.updateCameraFromSplineChange();
+            this.refreshCurrentCameraPreview();
         }
     }
 
-    @property(Camera)
-    camera: Camera = null!;
+    private _camera: Camera = null!;
+
+    @property({ type: Camera })
+    get camera(): Camera {
+        return this._camera;
+    }
+
+    set camera(value: Camera) {
+        if (this._camera === value) {
+            return;
+        }
+
+        this._camera = value;
+        this.refreshCurrentCameraPreview();
+    }
 
     //==================================================
     // Spline
     //==================================================
 
+    private _loop = false;
     @property({
         group: {
             id: 'spline',
             name: 'Spline',
         }
     })
-    loop = false;
+    get loop() {
+        return this._loop;
+    }
+
+    set loop(value: boolean) {
+        if (this._loop === value) {
+            return;
+        }
+
+        this._loop = value;
+        this.refreshCurrentCameraPreview();
+    }
 
     private _updateCameraOnSplineChanged = true;
     @property({
@@ -114,10 +139,7 @@ export class SplineCameraController extends Component {
 
     set reverse(value) {
         this._reverse = value;
-
-        if (this.isEditorPreviewEnabled()) {
-            this.updatePreview();
-        }
+        this.refreshCurrentCameraPreview();
     }
 
     //==================================================
@@ -225,23 +247,57 @@ export class SplineCameraController extends Component {
     // LookAt
     //==================================================
 
+    private _lookAtEnabled = true;
     @property({
         group: {
             id: 'lookAt',
             name: 'LookAt',
         }
     })
-    lookAtEnabled = true;
+    get lookAtEnabled() {
+        return this._lookAtEnabled;
+    }
 
+    set lookAtEnabled(value: boolean) {
+        if (this._lookAtEnabled === value) {
+            return;
+        }
+
+        this._lookAtEnabled = value;
+
+        if (value) {
+            this.bindLookAtTargetChanges();
+        }
+        else {
+            this.unbindLookAtTargetChanges();
+        }
+
+        this.refreshCurrentCameraPreview();
+    }
+
+    private _lookAheadDistance = 3;
     @property({
+        type: CCFloat,
         tooltip: '没有指定LookAt目标时，沿Spline向前看的距离',
         group: {
             id: 'lookAt',
             name: 'LookAt',
         }
     })
-    lookAheadDistance = 3;
+    get lookAheadDistance() {
+        return this._lookAheadDistance;
+    }
 
+    set lookAheadDistance(value: number) {
+        if (this._lookAheadDistance === value) {
+            return;
+        }
+
+        this._lookAheadDistance = value;
+        this.refreshCurrentCameraPreview();
+    }
+
+    private _lookAtTarget: Node | null = null;
     @property({
         type: Node,
         group: {
@@ -249,15 +305,37 @@ export class SplineCameraController extends Component {
             name: 'LookAt',
         }
     })
-    lookAtTarget: Node | null = null;
+    get lookAtTarget(): Node | null {
+        return this._lookAtTarget;
+    }
 
+    set lookAtTarget(value: Node | null) {
+        if (this._lookAtTarget === value) {
+            return;
+        }
+
+        this.unbindLookAtTargetChanges();
+        this._lookAtTarget = value;
+        this.bindLookAtTargetChanges();
+        this.refreshCurrentCameraPreview();
+    }
+
+    private _lookAtOffset = new Vec3();
     @property({
+        type: Vec3,
         group: {
             id: 'lookAt',
             name: 'LookAt',
         }
     })
-    lookAtOffset = new Vec3();
+    get lookAtOffset(): Vec3 {
+        return this._lookAtOffset;
+    }
+
+    set lookAtOffset(value: Vec3) {
+        this._lookAtOffset.set(value);
+        this.refreshCurrentCameraPreview();
+    }
 
     //==================================================
     // Events
@@ -290,7 +368,9 @@ export class SplineCameraController extends Component {
 
     private _observedSpline: Spline | null = null;
 
-    private _updatingFromSplineChange = false;
+    private _observedLookAtTarget: Node | null = null;
+
+    private _updatingCameraPreview = false;
 
     /** 当前是否处于启用中的编辑器预览状态。 */
     private isEditorPreviewEnabled(): boolean {
@@ -303,11 +383,13 @@ export class SplineCameraController extends Component {
 
     protected onEnable(): void {
         this.bindSplineChanges();
-        this.updateCameraFromSplineChange();
+        this.bindLookAtTargetChanges();
+        this.refreshCurrentCameraPreview();
     }
 
     protected onDisable(): void {
         this.unbindSplineChanges();
+        this.unbindLookAtTargetChanges();
     }
 
     start(): void {
@@ -493,9 +575,50 @@ export class SplineCameraController extends Component {
     }
 
     private updateCameraFromSplineChange(): void {
+        if (!this._updateCameraOnSplineChanged) {
+            return;
+        }
+
+        this.refreshCurrentCameraPreview();
+    }
+
+    private bindLookAtTargetChanges(): void {
         if (
-            !this._updateCameraOnSplineChanged ||
-            this._updatingFromSplineChange ||
+            !this.enabledInHierarchy ||
+            !this._lookAtEnabled ||
+            !this._lookAtTarget ||
+            this._observedLookAtTarget === this._lookAtTarget
+        ) {
+            return;
+        }
+
+        this.unbindLookAtTargetChanges();
+
+        this._observedLookAtTarget = this._lookAtTarget;
+        this._observedLookAtTarget.on(
+            Node.EventType.TRANSFORM_CHANGED,
+            this.refreshCurrentCameraPreview,
+            this
+        );
+    }
+
+    private unbindLookAtTargetChanges(): void {
+        if (!this._observedLookAtTarget) {
+            return;
+        }
+
+        this._observedLookAtTarget.off(
+            Node.EventType.TRANSFORM_CHANGED,
+            this.refreshCurrentCameraPreview,
+            this
+        );
+        this._observedLookAtTarget = null;
+    }
+
+    /** 按当前编辑器预览进度或运行距离重新应用相机。 */
+    private refreshCurrentCameraPreview(): void {
+        if (
+            this._updatingCameraPreview ||
             !this.enabledInHierarchy ||
             (EDITOR && !this._previewInEditor) ||
             !this.isReady()
@@ -503,7 +626,7 @@ export class SplineCameraController extends Component {
             return;
         }
 
-        this._updatingFromSplineChange = true;
+        this._updatingCameraPreview = true;
 
         try {
             if (this.isEditorPreviewEnabled() && this._state === CameraPlayState.Stopped) {
@@ -514,7 +637,7 @@ export class SplineCameraController extends Component {
             }
         }
         finally {
-            this._updatingFromSplineChange = false;
+            this._updatingCameraPreview = false;
         }
     }
 
